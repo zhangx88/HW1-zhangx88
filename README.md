@@ -1,7 +1,7 @@
 xzhangBioinformatics
 ====================
 
-biostat class
+Biostat class
 
 This is the repository created for the Biostat 578 Bioinformatics class.
 
