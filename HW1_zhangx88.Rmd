@@ -1,0 +1,75 @@
+
+
+Xieting Zhang, HW1, Biostat 578 Bioinformatics
+========================================================
+
+The following codes and annotations include all steps for completing homework 1.
+
+First of all, we need to install bioconductor packages and install the GEOmetadb package which contains the data
+we will use to find the HCV gene expression. 
+```{r eval=FALSE}
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+biocLite(c("GEOmetadb", "GEOquery"))
+```
+
+Before we can use the GEOmetadb package, we need to call the library
+first. 
+```{r eval=FALSE}
+library(GEOmetadb)
+```
+
+We also need to download the entire data and make a connection with the database in order to be able to check what variables are stored in each file in the package. 
+
+```{r eval =FALSE}
+getSQLiteFile()
+geo_con <- dbConnect(SQLite(),'GEOmetadb.sqlite')
+```
+
+For instance, you can check file names under the GEOmetadb package and check what variables are stored within the file *gse*.
+```{r eval=FALSE}
+dbListTables(geo_con)
+dbListFields(geo_con, 'gse')
+```
+
+Now we are ready to use query to find the information we are interested in, this could be achieved by a single query as below:
+
+```{r eval =FALSE}
+dbGetQuery(geo_con, "SELECT gse.title, gse.gse, gpl.gpl, gpl.manufacturer, gpl.description FROM (gse JOIN gse_gpl ON gse.gse = gse_gpl.gse) j JOIN  gpl ON j.gpl = gpl.gpl WHERE gse.title LIKE '%HCV%' AND gpl.manufacturer LIKE '%Illumina%' AND gse.contact LIKE '%Yale%';")
+```
+
+The same output can also be achieved through the R package data.table.
+First we need to call the library to be able to use data.table package:
+
+```{r eval =FALSE}
+library(data.table)
+```
+
+Next we need to convert the three files from GEOmetadb package into data.table tables:
+
+```{r eval=FALSE}
+dt.gse <- data.table(dbGetQuery(geo_con,"SELECT * FROM gse;"))
+dt.gpl <- data.table(dbGetQuery(geo_con,"SELECT * FROM gpl;"))
+dt.gsegpl <- data.table(dbGetQuery(geo_con,"SELECT * FROM gse_gpl;"))
+```
+
+Then we can set keys for each of the tables and merge all three files together in two steps:
+
+```{r eval=FALSE}
+setkey(dt.gse, gse)
+setkey(dt.gpl,gpl)
+setkey(dt.gsegpl, gse)
+dt.m1 <- merge(dt.gse, dt.gsegpl)
+setkey(dt.m1,gpl)
+dt.m2 <- merge(dt.m1, dt.gpl)
+```
+
+The last step is to select the information corresponding to HCV gene expression and the Illumina platform and only display
+the variables specified in the homework description:
+
+```{r eval=FALSE}
+select_t <- dt.m2[title.x %like% "HCV"]
+select_t2 <- select_t[contact.x %like% "Yale"]
+select_t3 <- select_t2[manufacturer %like% "Illumina"]
+select_t3[,list(title.x,gse,gpl,manufacturer, description)]
+```
