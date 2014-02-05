@@ -2,6 +2,7 @@
 
 Xieting Zhang, HW1, Biostat 578 Bioinformatics
 ========================================================
+# EAR: why did you choose to have eval=FALSE throughout the .Rmd file? 
 
 The following codes and annotations include all steps for completing homework 1.
 
@@ -9,8 +10,8 @@ First of all, we need to install bioconductor packages and install the GEOmetadb
 we will use to find the HCV gene expression. 
 ```{r eval=FALSE}
 source("http://bioconductor.org/biocLite.R")
-biocLite()
-biocLite(c("GEOmetadb", "GEOquery"))
+biocLite() #EAR: this is extraneous
+biocLite(c("GEOmetadb", "GEOquery")) #EAR: You only need GEOmetadb. 
 ```
 
 Before we can use the GEOmetadb package, we need to call the library
@@ -36,6 +37,7 @@ Now we are ready to use query to find the information we are interested in, this
 
 ```{r eval =FALSE}
 dbGetQuery(geo_con, "SELECT gse.title, gse.gse, gpl.gpl, gpl.manufacturer, gpl.description FROM (gse JOIN gse_gpl ON gse.gse = gse_gpl.gse) j JOIN  gpl ON j.gpl = gpl.gpl WHERE gse.title LIKE '%HCV%' AND gpl.manufacturer LIKE '%Illumina%' AND gse.contact LIKE '%Yale%';")
+# EAR: I used "gse.summary LIKE '%HCV%'" instead of "gse.title LIKE '%HCV%'" and found the second article output from here, plus a different article. I think the other article that I found is used in HW2. 
 ```
 
 The same output can also be achieved through the R package data.table.
@@ -66,7 +68,7 @@ dt.m2 <- merge(dt.m1, dt.gpl)
 
 The last step is to select the information corresponding to HCV gene expression and the Illumina platform and only display
 the variables specified in the homework description:
-
+#EAR: I found that merging the tables using a single line of code was difficult. However, selecting based on variable %like% and getting just the columns of interest can be easily done in a single line of code. I only mention this because the homework instructions indicated that we should use one line of code. In general, I prefer to do things with more than one line of code so that it makes more sense to me when I am reading it. 
 ```{r eval=FALSE}
 select_t <- dt.m2[title.x %like% "HCV"]
 select_t2 <- select_t[contact.x %like% "Yale"]
