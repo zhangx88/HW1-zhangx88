@@ -1,0 +1,90 @@
+
+
+Xieting Zhang, HW2, Biostat 578 Bioinformatics
+========================================================
+
+The following codes and annotations include all steps for completing homework 2.
+
+First of all, we need to install bioconductor packages and install the GEOmetadb package which contains the data
+we will use. 
+```{r}
+source("http://bioconductor.org/biocLite.R")
+biocLite()
+biocLite(c("GEOmetadb", "GEOquery"))
+```
+
+Before we can use the GEOmetadb package, we need to call the library
+first. 
+```{r }
+library(GEOmetadb)
+```
+
+We also need to make a connection with the database, install limma package and call all the 
+libraries we will use. 
+
+```{r }
+geo_con <- dbConnect(SQLite(),'GEOmetadb.sqlite')
+biocLite("limma")
+library(limma)
+library(Biobase)
+library(data.table)
+```
+
+
+Now we can get the data first:
+
+```{r }
+mygds <- getGEO("GSE40812")
+```
+
+Since we have downloaded the processed data rather than the raw data, we do not need to normalize it. But we can
+clean it up somehow:
+
+```{r }
+mygds_new <- mygds
+sanitize_pdata <- function(pd){
+  keepCols <- c(
+    "characteristics_ch1", "characteristics_ch1.2")
+  pd <- pd[, keepCols]
+  colnames(pd) <- c("pt", "treatment")
+  pd$pt <- gsub(".*: ", "", pd$pt)
+  pd$treatment<-gsub("treatment: ", "", pd$treatment)
+  pd
+}
+pData(mygds_new[[1]]) <- sanitize_pdata(pData(mygds_new[[1]]))
+```
+
+To use the limma package and its regression function, we need to have the model matrix set up with the correct indicators:
+
+```{r }
+mm <- model.matrix(~pt+treatment, mygds_new[[1]])
+mm[,3] <- mm[,3]+mm[,4]
+```
+
+Then we can run the linear fit and use t-test to compute the test scores and compute the p-values for our
+coefficient of interest:
+
+```{r }
+mfit<- lmFit(mygds_new[[1]], mm[,1:3])
+ebay_m <- eBayes(mfit)
+topp <- topTable(ebay_m, coef="treatmentPoly IC H", number=Inf, sort.by="none")
+```
+
+Now I was stuck and I did not know exactly how to select the 43 probe sets out of the 80 samples I have in 
+the data, I could have picked out the adjusted p-values as below:
+
+```{r }
+pv<-topp$adj.P.Val
+```
+
+But I did not go anywhere with this step of picking out p-values. I think I need some help with this.
+Suppose we have been successfull picked out the 43 probe sets that we desire to find, we then can use the 
+pheatmap package to plot the expression sets that have p-value < 0.1 as below:
+
+```{r}
+install.packages("pheatmap")
+library(pheatmap)
+## heatmap(exprs(mygds_new[[1]])) This line is not exactly right because we need to pick out the 
+## information we need to plot the heatmap, and ignore the other information we do not need.
+## exprs() here will extract the expression sets
+```
