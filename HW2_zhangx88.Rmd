@@ -1,5 +1,4 @@
 
-
 Xieting Zhang, HW2, Biostat 578 Bioinformatics
 ========================================================
 
@@ -54,37 +53,32 @@ sanitize_pdata <- function(pd){
 pData(mygds_new[[1]]) <- sanitize_pdata(pData(mygds_new[[1]]))
 ```
 
-To use the limma package and its regression function, we need to have the model matrix set up with the correct indicators:
+To use the limma package and its regression function, we need to have the model matrix set up 
+the design matrix:
 
 ```{r }
 mm <- model.matrix(~pt+treatment, mygds_new[[1]])
-mm[,3] <- mm[,3]+mm[,4]
+
 ```
 
-Then we can run the linear fit and use t-test to compute the test scores and compute the p-values for our
-coefficient of interest:
+Then we can run the linear fit and use topTable function to find the genes that
+are differentially expressed:
 
 ```{r }
-mfit<- lmFit(mygds_new[[1]], mm[,1:3])
+mfit<- lmFit(mygds_new[[1]], mm)
 ebay_m <- eBayes(mfit)
-topp <- topTable(ebay_m, coef="treatmentPoly IC H", number=Inf, sort.by="none")
+topp <- topTable(ebay_m, coef="treatmentPoly IC H", adjust='fdr', p.value = 0.05)
 ```
 
-Now I was stuck and I did not know exactly how to select the 43 probe sets out of the 80 samples I have in 
-the data, I could have picked out the adjusted p-values as below:
-
+We need to pick out the genes that have an adjusted p-value less than 0.1:
 ```{r }
-pv<-topp$adj.P.Val
+selected <- p.adjust(ebay_m$F.p.value) < 0.1
+gds.selected <- mygds_new[[1]][selected,]
 ```
 
-But I did not go anywhere with this step of picking out p-values. I think I need some help with this.
-Suppose we have been successfull picked out the 43 probe sets that we desire to find, we then can use the 
-pheatmap package to plot the expression sets that have p-value < 0.1 as below:
-
+The we can plot the heatmap:
 ```{r}
 install.packages("pheatmap")
 library(pheatmap)
-## heatmap(exprs(mygds_new[[1]])) This line is not exactly right because we need to pick out the 
-## information we need to plot the heatmap, and ignore the other information we do not need.
-## exprs() here will extract the expression sets
+heatmap(exprs(gds.selected))
 ```
