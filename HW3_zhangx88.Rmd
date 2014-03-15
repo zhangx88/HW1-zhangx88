@@ -1,0 +1,133 @@
+Biostat 578 HW3 Xieting Zhang
+========================================================
+
+First of all, get the data from GEO. We have used the data in class we basically do the same as
+we did in class: (I called the limma library here as well since we will use it later)
+
+```{r}
+source("http://bioconductor.org/biocLite.R")
+# install GEO meta database
+biocLite("GEOmetadb")
+# get GE0 meta database package
+library(GEOmetadb)
+
+library(GEOquery)
+
+biocLite("limma")
+library(limma)
+
+# Download the mapping information and processed data
+gds <- getGEO("GSE29619") 
+#main serie #gds[[1]] = LAIV/TIV 0809, gds[[2]] = FACS, gds[[3]] = TIV 0708
+```
+
+We need to clean up the data first:
+
+```{r }
+### Sanitize data and metadata
+gds_new <- gds
+sanitize_pdata <- function(pd){
+keepCols <- c(
+  "characteristics_ch1.1", "characteristics_ch1.2",
+  "description", 
+  "supplementary_file")
+pd <- pd[, keepCols]
+colnames(pd) <- c("ptid", "time", "description", "filename")
+pd$ptid <- gsub(".*: ", "", pd$ptid)
+pd$time <- gsub(".*: ", "", pd$time)
+pd$time<-gsub("Day", "D", pd$time)
+pd$description<-gsub("(-\\w*){2}$", "", pd$description)
+pd$filename<-basename(as.character(pd$filename))
+pd$filename<-gsub(".CEL.gz", "", pd$filename)
+pd
+}
+
+pData(gds_new[[1]]) <- sanitize_pdata(pData(gds_new[[1]]))
+pData(gds_new[[2]]) <- sanitize_pdata(pData(gds_new[[2]]))
+pData(gds_new[[3]]) <- sanitize_pdata(pData(gds_new[[3]]))
+```
+
+Now we can use voom and limma to find genes that are differentially expressed at each time point
+compared to baseline:
+
+```{r}
+new_set <- ExpressionSet(assayData = exprs(gds_new[[1]])+1) ## add 1 based on the lecture notes
+TIV_08 <- new_set
+pData(TIV_08) <- pData(gds_new[[1]])
+
+
+mm_TIV_08 <- model.matrix(~ptid+time, TIV_08) # design matrix
+new_set_voom <- voom(TIV_08,design = mm_TIV_08)
+lm <- lmFit(new_set_voom, mm_TIV_08)
+eb <- eBayes(lm)
+```
+
+We can use the topTable() function to find the differentially expressed genes based on
+False Discovery Rate less than 0.01:
+
+```{r}
+library(data.table)
+library(heatmap) ## call this library for later use
+
+topT3 <- data.table(topTable(eb, coef = "timeD3", adjust = 'fdr',p.value = 0.01))
+
+topT7 <- data.table(topTable(eb, coef = "timeD7", adjust = 'fdr',p.value = 0.01))
+
+```
+
+We then take the column corresponding to log fold-change and plot using heatmap:
+
+```{r}
+PValue <- matrix(c(topT3$logFC[topT3$adj.P.Val<0.1],topT7$logFC[topT7$adj.P.Val<0.1]),ncol=2)
+rownames(PValue) <- rownames(topT3)[topT3$adj.P.Val<0.1]
+colnames(PValue) <- c("timeD3","timeD7")
+
+pheatmap(PValue)
+```
+
+
+To do GSEA analysis, we need to install the package first:
+
+```{r}
+library(BiocInstaller)
+biocLite("GSEABase")
+library(GSEABase)
+```
+
+Download the gene sets and convert the gene sets to gene indices:
+
+```{r}
+c2_set <- getGmt("GSEA-sets/c2.all.v4.0.symbols.gmt")
+gene_ids <- geneIds(c2_set)
+# Camera requires gene-indices
+sets_indices <- symbols2indices(gene_ids, fData(gds_new[[1]])[,"Gene Symbol"])
+```
+
+Finding enriched gene sets over time:
+
+```{r}
+res <- vector("list",length = 2)
+ct <- 1
+for(i in c(3,7))
+{
+  contrast <- paste0("timeD",i)
+  cont_matrix <- makeContrasts(contrast, levels=mm_TIV_08)
+  res[[ct]] <- camera(new_set_voom, sets_indices, design=mm_TIV_08, contrast=cont_matrix, sort=FALSE)
+  ct <- ct+1
+}
+  
+```
+
+The display results using heatmap grouping by timepoint:
+
+```{r}
+PValue <- sapply(res, function(x){ifelse(x$Direction=="Up", -10*log10(x$PValue), 10*log10(x$PValue))})
+rownames(PValue) <- rownames(res[[1]])
+PValue_max <- rowMax(abs(PValue))
+PValue_small <- PValue[PValue_max>30, ]
+anno <- data.frame(Time=paste0("timeD",c(3,7)))
+rownames(anno) <- colnames(PValue_small)  <- paste0("timeD",c(3,7))
+
+
+pheatmap(PValue_small, cluster_cols=FALSE,show_rownames=FALSE)
+```
